@@ -196,6 +196,4 @@ public:
   char errorString[ERROR_STRING_SIZE];
 };
 
-int setup(int fd, OpenBaton *data);
-
 #endif

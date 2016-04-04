@@ -125,35 +125,7 @@ int ToDataBitsConstant(int dataBits) {
   return -1;
 }
 
-
-
-void EIO_Open(uv_work_t* req) {
-  OpenBaton* data = static_cast<OpenBaton*>(req->data);
-
-  int flags = (O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC | O_SYNC);
-  int fd = open(data->path, flags);
-
-  if(-1 == setup(fd, data)){
-    return;
-  }
-
-  data->result = fd;
-}
-
-void EIO_Update(uv_work_t* req) {
-  OpenBaton* data = static_cast<OpenBaton*>(req->data);
-
-  int fd = data->fd;
-
-  if(-1 == setup(fd, data)){
-    return;
-  }
-
-  data->result = fd;
-}
-
-
-int setup(int fd, OpenBaton *data) {
+static int setup(int fd, OpenBaton *data) {
 
   UnixPlatformOptions* platformOptions = static_cast<UnixPlatformOptions*>(data->platformOptions);
 
@@ -354,6 +326,32 @@ int setup(int fd, OpenBaton *data) {
   return 1;
 
 }
+
+void EIO_Open(uv_work_t* req) {
+  OpenBaton* data = static_cast<OpenBaton*>(req->data);
+
+  int flags = (O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC | O_SYNC);
+  int fd = open(data->path, flags);
+
+  if(-1 == setup(fd, data)){
+    return;
+  }
+
+  data->result = fd;
+}
+
+void EIO_Update(uv_work_t* req) {
+  OpenBaton* data = static_cast<OpenBaton*>(req->data);
+
+  int fd = data->fd;
+
+  if(-1 == setup(fd, data)){
+    return;
+  }
+
+  data->result = fd;
+}
+
 
 void EIO_Write(uv_work_t* req) {
   QueuedWrite* queuedWrite = static_cast<QueuedWrite*>(req->data);

@@ -125,7 +125,8 @@ int ToDataBitsConstant(int dataBits) {
   return -1;
 }
 
-static int setup(int fd, OpenBaton *data) {
+
+static void setup(int fd, OpenBaton *data) {
 
   UnixPlatformOptions* platformOptions = static_cast<UnixPlatformOptions*>(data->platformOptions);
 
@@ -141,19 +142,14 @@ static int setup(int fd, OpenBaton *data) {
   int dataBits = ToDataBitsConstant(data->dataBits);
   if(dataBits == -1) {
     snprintf(data->errorString, sizeof(data->errorString), "Invalid data bits setting %d", data->dataBits);
-    return -1;
-  }
-
-  if (fd == -1) {
-    snprintf(data->errorString, sizeof(data->errorString), "Cannot open %s", data->path);
-    return -1;
+    return;
   }
 
   //Snow Leopard doesn't have O_CLOEXEC
   int cloexec = fcntl(fd, F_SETFD, FD_CLOEXEC);
   if (cloexec == -1) {
     snprintf(data->errorString, sizeof(data->errorString), "Cannot open %s", data->path);
-    return -1;
+    return;
   }
 
   // struct sigaction saio;
@@ -275,8 +271,7 @@ static int setup(int fd, OpenBaton *data) {
     break;
   default:
     snprintf(data->errorString, sizeof(data->errorString), "Invalid parity setting %d", data->parity);
-    close(fd);
-    return -1;
+    return;
   }
 
   switch(data->stopBits) {
@@ -288,8 +283,7 @@ static int setup(int fd, OpenBaton *data) {
     break;
   default:
     snprintf(data->errorString, sizeof(data->errorString), "Invalid stop bits setting %d", data->stopBits);
-    close(fd);
-    return -1;
+    return;
   }
 
   options.c_cflag |= CLOCAL; //ignore status lines
@@ -322,9 +316,6 @@ static int setup(int fd, OpenBaton *data) {
     }
   }
 #endif
-
-  return 1;
-
 }
 
 void EIO_Open(uv_work_t* req) {
@@ -333,25 +324,30 @@ void EIO_Open(uv_work_t* req) {
   int flags = (O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC | O_SYNC);
   int fd = open(data->path, flags);
 
-  if(-1 == setup(fd, data)){
+  if (fd == -1) {
+    snprintf(data->errorString, sizeof(data->errorString), "Cannot open %s", data->path);
     return;
   }
 
-  data->result = fd;
+  setup(fd, data);
+
+  if (data->errorString[0]) {
+    close(fd);
+  } else {
+    data->result = fd;
+  }
+
 }
 
 void EIO_Update(uv_work_t* req) {
   OpenBaton* data = static_cast<OpenBaton*>(req->data);
 
-  int fd = data->fd;
+  setup(data->fd, data);
 
-  if(-1 == setup(fd, data)){
-    return;
+  if(! data->errorString[0]) {
+    data->result = data->fd;
   }
-
-  data->result = fd;
 }
-
 
 void EIO_Write(uv_work_t* req) {
   QueuedWrite* queuedWrite = static_cast<QueuedWrite*>(req->data);
@@ -398,7 +394,7 @@ void EIO_Close(uv_work_t* req) {
 
   // printf(">>>> closed fd %d (err: %d)\n", data->fd, errno);
 
-  if (r && r != EBADF)
+  if (r && errno != EBADF)
     snprintf(data->errorString, sizeof(data->errorString), "Unable to close fd %d, errno: %d", data->fd, errno);
 }
 
